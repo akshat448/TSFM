@@ -1,0 +1,107 @@
+# contamination_matrix.yaml
+#
+# Seeds BENCHMARK_SPEC.md's requirement that "every zero-shot number gets a
+# contamination label: certified-unseen, known-overlap, or undocumented/unknown."
+#
+# Entries below come directly from the bridge phase's literature review
+# (literature/notes/*.md), not guessed. Anything not listed here defaults to
+# undocumented/unknown in contamination.py, on purpose, silence should never
+# be read as "clean."
+#
+# Schema: dataset -> either a flat "default" label applying to any model, or
+# a per-model override list when the evidence is model-specific.
+#
+# Labels:
+#   certified-unseen     model author documents this dataset was excluded from pretraining
+#   known-overlap         documented or directly measured overlap with a model's pretraining/eval corpus
+#   undocumented-unknown  no specific evidence either way, default, never silently upgraded
+
+ETTh1:
+  default: undocumented-unknown
+  overrides:
+    lag-llama: known-overlap   # Meyer et al. 2025, arXiv:2510.13654: used in Lag-Llama pretraining
+    unitime: known-overlap     # same source: used in UniTime train/test evaluation
+
+ETTh2:
+  default: undocumented-unknown
+  overrides:
+    lag-llama: known-overlap
+    unitime: known-overlap
+
+ETTm1:
+  default: undocumented-unknown
+  overrides:
+    lag-llama: known-overlap
+    unitime: known-overlap
+
+ETTm2:
+  default: undocumented-unknown
+  # not explicitly named in Meyer et al.'s ETT sentence, don't assume it shares ETTm1's status
+
+electricity:
+  default: undocumented-unknown
+  overrides:
+    # any model pretrained on the Monash archive's "Electricity" or GIFT-Eval's
+    # "electricity" config has almost certainly seen this same UCI population,
+    # see electricity.md / gift_eval.md for the correlation evidence (297/321
+    # clients match at corr > 0.9999 against GIFT-Eval's electricity__H)
+    chronos-bolt: undocumented-unknown   # Chronos pretraining corpus not confirmed against this specific population yet
+    timesfm: undocumented-unknown        # TimesFM states it held out Monash/ETT but admits partial exceptions, not confirmed for Electricity specifically
+    moirai: undocumented-unknown         # GIFT-Eval's own paper flags Moirai leakage generically, not dataset-specific enough to label known-overlap here
+
+solar_energy:
+  default: undocumented-unknown
+  overrides:
+    # confirmed BYTE-IDENTICAL to Monash solar_10_minutes and GIFT-Eval solar/10T,
+    # see solar_energy.md / monash.md three-way check
+    ttm: known-overlap          # Meyer et al. 2025: TinyTimeMixers pretrained on this Alabama LSTNet solar subset
+    lag-llama: known-overlap    # same source: Lag-Llama also pretrained on it
+    chronos-bolt: undocumented-unknown  # Chronos separately ingests "solar from all US states" at different resolution per Meyer et al., overlap with this exact series not confirmed
+
+traffic:
+  default: undocumented-unknown
+  overrides:
+    # confirmed BYTE-IDENTICAL to Monash traffic_hourly, see traffic.md
+    timesfm: known-overlap      # Meyer et al. 2025: "the traffic hourly dataset appears to have been used during pretraining while also being included in the reported Monash evaluation benchmark"
+
+weather:
+  default: undocumented-unknown
+  # mechanism-level risk only (MPI Jena's live feed is continuously re-uploaded
+  # under different names/year-ranges with no central dedup), no confirmed
+  # case for any named model, see weather.md, do not upgrade this without new evidence
+
+pems03:
+  default: undocumented-unknown
+  # no Monash/GIFT-Eval overlap found in either archive's Transport domain as
+  # of the check in pems03.md, closest thing to certified-unseen this project
+  # has direct evidence for, but not exhaustively checked against all ~15
+  # models' documented pretraining corpora, so still undocumented-unknown not certified-unseen
+
+pems04:
+  default: undocumented-unknown
+
+pems08:
+  default: undocumented-unknown
+
+ptbxl:
+  default: undocumented-unknown
+  overrides:
+    # ECG-FM pretrains on a random split of PhysioNet Challenge 2021, which
+    # includes PTB-XL, without respecting PTB-XL's own patient/fold structure,
+    # see ptbxl.md. Treat as contaminated for ECG-FM specifically unless the
+    # model authors document an explicit PTB-XL test-fold exclusion.
+    ecg-fm: known-overlap
+    hubert-ecg: undocumented-unknown   # not specifically checked yet, same Challenge-2021 risk plausible, verify before running
+
+gift_eval:
+  default: undocumented-unknown
+  # GIFT-Eval's own paper (Aksu et al. 2024) documents TimesFM/Chronos/Moirai
+  # "exhibit partial data leakage issues for GIFT-Eval" generically, see
+  # gift_eval.md, not specific enough per-config to assign known-overlap here
+  # without checking the paper's own per-model leakage table directly
+
+monash:
+  default: undocumented-unknown
+  # this archive is itself a common pretraining ingredient for Chronos,
+  # TimesFM, Time-MoE, Moirai, see monash.md, check per sub-dataset before
+  # trusting a zero-shot number from any of those four models against it

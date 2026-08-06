@@ -1,0 +1,24 @@
+# Datasets
+dataset/raw/
+
+# HuggingFace caches
+**/*.arrow
+
+# Large archives
+*.zip
+
+# Large generated files
+*.parquet
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.env
+dataset/raw/
+__pycache__/
+*.pyc
+venv/
+.env

@@ -1,0 +1,7 @@
+{
+  "dataset": "monash",
+  "output": "/mnt/hdd1/TSFM/dataset/processed/multi_domain/monash.parquet",
+  "rows": 0,
+  "columns": [],
+  "dtypes": {}
+}

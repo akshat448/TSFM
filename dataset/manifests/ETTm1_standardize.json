@@ -1,0 +1,25 @@
+{
+  "dataset": "ETTm1",
+  "output": "/mnt/hdd1/TSFM/dataset/processed/energy/ettm1.parquet",
+  "rows": 7,
+  "columns": [
+    "item_id",
+    "start",
+    "freq",
+    "target",
+    "group_id",
+    "train_end_idx",
+    "val_end_idx",
+    "test_end_idx"
+  ],
+  "dtypes": {
+    "item_id": "object",
+    "start": "datetime64[ns]",
+    "freq": "object",
+    "target": "object",
+    "group_id": "object",
+    "train_end_idx": "int64",
+    "val_end_idx": "int64",
+    "test_end_idx": "int64"
+  }
+}

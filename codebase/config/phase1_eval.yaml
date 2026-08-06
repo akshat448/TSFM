@@ -1,0 +1,67 @@
+# config/phase1_eval.yaml
+#
+# What to run for Phase 1 milestone M1/M2 (reproduction gate + full
+# non-negotiable-baseline table, see PHASE1_PLAN.md section 6). Extend this
+# file for M3+ as Wave 2 models get verified, don't hand-edit run_phase1.py
+# to add a run, add a block here instead.
+
+output_dir: results/phase1
+
+# season_length used for MASE scaling and for seasonal_naive itself, per
+# dataset frequency (see models/seasonal_naive.py's SEASON_LENGTH_BY_FREQ)
+datasets:
+  ETTh1:
+    schema: ltsf
+    parquet_path: datasets/processed/energy/ETTh1.parquet   # resolved against paths.yaml's processed_dir at load time
+    season_length: 24
+    horizons: [96, 192, 336, 720]
+
+  ETTh2:
+    schema: ltsf
+    parquet_path: datasets/processed/energy/ETTh2.parquet
+    season_length: 24
+    horizons: [96, 192, 336, 720]
+
+  ETTm1:
+    schema: ltsf
+    parquet_path: datasets/processed/energy/ETTm1.parquet
+    season_length: 96
+    horizons: [96, 192, 336, 720]
+
+  ETTm2:
+    schema: ltsf
+    parquet_path: datasets/processed/energy/ETTm2.parquet
+    season_length: 96
+    horizons: [96, 192, 336, 720]
+
+  electricity:
+    schema: ltsf
+    parquet_path: datasets/processed/energy/electricity.parquet
+    season_length: 24
+    horizons: [96, 192, 336, 720]
+
+  weather:
+    schema: ltsf
+    parquet_path: datasets/processed/weather/weather.parquet
+    season_length: 144   # 10-min data, daily season = 24*6
+    horizons: [96, 192, 336, 720]
+
+# Wave 1 only for M1/M2, per PHASE1_PLAN.md. Uncomment Wave 2 rows once the
+# corresponding adapter's smoke test (models/<name>.py's __main__ block) has
+# actually been run and passed on the real server.
+models:
+  seasonal_naive:
+    kind: zero_shot
+    kwargs: {}   # season_length is injected per-dataset by run_phase1.py, not fixed here
+  dlinear:
+    kind: trained
+    kwargs: {epochs: 20, lr: 0.005}
+  # chronos_bolt:
+  #   kind: zero_shot
+  #   kwargs: {checkpoint: amazon/chronos-bolt-base}
+  # timesfm:
+  #   kind: zero_shot
+  #   kwargs: {checkpoint: google/timesfm-2.5-200m-pytorch, context_len: 512, horizon_len: 128}
+  # ttm:
+  #   kind: zero_shot
+  #   kwargs: {checkpoint: ibm-granite/granite-timeseries-ttm-r2, context_len: 512, horizon_len: 96}

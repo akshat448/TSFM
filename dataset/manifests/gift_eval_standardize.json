@@ -1,0 +1,25 @@
+{
+  "dataset": "gift_eval",
+  "output": "/mnt/hdd1/TSFM/dataset/processed/multi_domain/gift_eval.parquet",
+  "rows": 0,
+  "columns": [
+    "item_id",
+    "start",
+    "freq",
+    "target",
+    "group_id",
+    "train_end_idx",
+    "val_end_idx",
+    "test_end_idx"
+  ],
+  "dtypes": {
+    "item_id": "object",
+    "start": "object",
+    "freq": "object",
+    "target": "object",
+    "group_id": "object",
+    "train_end_idx": "object",
+    "val_end_idx": "object",
+    "test_end_idx": "object"
+  }
+}
