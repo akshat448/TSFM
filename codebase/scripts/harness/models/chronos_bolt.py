@@ -42,13 +42,16 @@ class ChronosBoltAdapter(ForecastModel):
         context_t = torch.tensor(np.asarray(context, dtype=np.float32))
         quantile_levels = kwargs.get("quantile_levels", QUANTILE_LEVELS)
         quantiles, mean = self._pipeline.predict_quantiles(
-            context=context_t,
+            context_t,
             prediction_length=horizon,
             quantile_levels=quantile_levels,
         )
         # quantiles: (1, horizon, n_quantiles), mean: (1, horizon) per the documented shape,
         # VERIFY this against your installed version, this is the most likely thing to have drifted
         quantiles_np = quantiles.squeeze(0).cpu().numpy()  # (horizon, n_quantiles)
+        # Finite-sample quantile heads can cross slightly. Enforce the
+        # distribution invariant before probabilistic metrics consume them.
+        quantiles_np = np.maximum.accumulate(quantiles_np, axis=1)
         point = mean.squeeze(0).cpu().numpy()
         q_dict = {q: quantiles_np[:, i] for i, q in enumerate(quantile_levels)}
         return ForecastResult(point=point, quantiles=q_dict)

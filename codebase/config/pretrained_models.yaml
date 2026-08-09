@@ -1,0 +1,54 @@
+# One source of truth for the Phase-1 general-TSFM zero-shot family.
+# `stage` records the resolved Hub revision in every run manifest.
+models:
+  chronos_bolt:
+    adapter: chronos_bolt
+    checkpoint: amazon/chronos-bolt-base
+    package: chronos-forecasting>=2.0
+    probabilistic: true
+    context_limit: 2048
+  timesfm:
+    adapter: timesfm
+    checkpoint: google/timesfm-2.5-200m-pytorch
+    package: timesfm
+    probabilistic: true
+    context_limit: 16384
+  moirai_1_1_r:
+    adapter: moirai
+    checkpoint: Salesforce/moirai-1.1-R-base
+    package: uni2ts
+    probabilistic: true
+    context_limit: 512
+  moirai_moe:
+    adapter: moirai_moe
+    checkpoint: Salesforce/moirai-moe-1.0-R-base
+    package: uni2ts
+    probabilistic: true
+    context_limit: 512
+  moment_1_large:
+    adapter: moment
+    checkpoint: AutonLab/MOMENT-1-large
+    package: momentfm
+    probabilistic: false
+    context_limit: 512
+  ttm_r2:
+    adapter: ttm
+    checkpoint: ibm-granite/granite-timeseries-ttm-r2
+    package: granite-tsfm
+    probabilistic: false
+    context_limit: 1024
+  chronos_2:
+    adapter: chronos_2
+    checkpoint: amazon/chronos-2
+    package: chronos-forecasting>=2.0
+    probabilistic: true
+    context_limit: 8192
+
+serialized_order:
+  - chronos_bolt
+  - timesfm
+  - moirai_1_1_r
+  - moirai_moe
+  - moment_1_large
+  - ttm_r2
+  - chronos_2

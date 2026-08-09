@@ -60,3 +60,21 @@ def try_register_wave2() -> list[str]:
     except ImportError:
         failed.append("ttm (pip install granite-tsfm / tsfm_public)")
     return failed
+
+
+def register_pretrained_models() -> None:
+    """Register all approved zero-shot TSFM families without importing extras eagerly."""
+    from .models.chronos_2 import Chronos2Adapter
+    from .models.moirai import MoiraiAdapter, MoiraiMoEAdapter
+    from .models.moment import MomentAdapter
+    from .models.chronos_bolt import ChronosBoltAdapter
+    from .models.timesfm import TimesFMAdapter
+    from .models.ttm import TTMAdapter
+
+    register_forecast_model("chronos_bolt", lambda **kw: ChronosBoltAdapter(**kw))
+    register_forecast_model("timesfm", lambda **kw: TimesFMAdapter(**kw))
+    register_forecast_model("moirai_1_1_r", lambda **kw: MoiraiAdapter(**kw))
+    register_forecast_model("moirai_moe", lambda **kw: MoiraiMoEAdapter(**kw))
+    register_forecast_model("moment_1_large", lambda **kw: MomentAdapter(**kw))
+    register_forecast_model("ttm_r2", lambda **kw: TTMAdapter(**kw))
+    register_forecast_model("chronos_2", lambda **kw: Chronos2Adapter(**kw))

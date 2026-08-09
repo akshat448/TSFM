@@ -5,3 +5,5 @@ processed_dir: /mnt/hdd1/TSFM/dataset/processed
 manifest_dir: /mnt/hdd1/TSFM/dataset/manifests
 repo_root: /mnt/hdd1/TSFM/codebase
 results_dir: /mnt/hdd1/TSFM/codebase/results/phase1
+checkpoint_root: /mnt/hdd1/TSFM/models/checkpoints
+huggingface_cache: /mnt/hdd1/TSFM/models/cache/huggingface

@@ -1,5 +1,15 @@
 STATUS.md (running log)
 
+2026-08-09 (pretrained TSFM pipeline, one-GPU serialized execution)
+
+Done: Added `MODEL_EVALUATION_STANDARD.md`, seven-family model manifest, isolated-per-model Python 3.11 environment setup script, staging/smoke/run/submit CLI, and a serialized Slurm template that requests exactly one GPU and runs the seven models sequentially. Added unit coverage for manifest validation, sampling, resume markers, Slurm rendering, control-machine submission, and Chronos-Bolt’s current API. Chronos-Bolt Base checkpoint was staged locally and passed a real CPU synthetic-series smoke test. Its adapter was corrected for the installed `chronos-forecasting` prediction signature and quantile crossings.
+
+Blocked: Current upstream `momentfm` and `timesfm` releases have incompatible NumPy pins, so the new per-model environments are required. Only Chronos-Bolt has completed a real local smoke run in this session; the remaining six still need their own environment/package/checkpoint smoke passes before GPU evaluation.
+
+New packages/scripts added: local untracked Chronos-Bolt smoke environment and checkpoint cache; both ignored by git. New tracked scripts/configuration are listed above.
+
+Next session should start with: create the remaining six isolated environments using `scripts/setup_model_envs.sh`, stage their checkpoints, run `run_pretrained_models.py smoke --model <name> --device cpu`, then copy/fill `config/slurm.example.yaml` as `config/slurm.yaml` on the RTX server and render the submission script.
+
 Append a new entry at the top after every work session, newest first. Keep entries short and factual: what got done, what’s blocked, what’s next. This is the main way continuity survives across sessions and across the move to the collaborator’s compute/storage.
 
 2026-07-08 (final two bridge-phase items: Traffic dedup check + lab directory inventory — bridge phase genuinely closed)

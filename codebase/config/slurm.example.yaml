@@ -1,0 +1,8 @@
+# Copy to config/slurm.yaml on the RTX server and fill only site-owned fields.
+# The generated job intentionally requests one GPU and runs every model serially.
+partition: ""
+account: ""
+qos: ""
+cpus_per_task: 8
+memory: 64G
+time: "24:00:00"

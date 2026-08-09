@@ -17,6 +17,10 @@ __pycache__/
 # Virtual environments
 venv/
 .env
+models/cache/
+models/checkpoints/
+models/envs/
+.venv-tsfm-smoke/
 dataset/raw/
 __pycache__/
 *.pyc
