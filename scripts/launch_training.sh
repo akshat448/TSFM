@@ -14,9 +14,17 @@
 # survives your AnyDesk/VSCode-tunnel session disconnecting.
 #
 # Usage:
-#   ./scripts/launch_training.sh [--gpu N] [-- <extra args forwarded to train_cluster.py>]
-#   ./scripts/launch_training.sh                                  # defaults to GPU 7
+#   ./scripts/launch_training.sh [--gpu N|auto] [--min-free-mib N] [-- <extra args forwarded to train_cluster.py>]
+#   ./scripts/launch_training.sh                                  # auto-picks a GPU (default)
 #   ./scripts/launch_training.sh --gpu 3 -- --subjects 01,02
+#
+# --gpu auto (the default) picks the physical GPU with the LOWEST reported
+# utilization among those with at least --min-free-mib (default 10000) MiB
+# free, using `nvidia-smi --query-gpu`. This is a snapshot heuristic on a
+# box shared with other users, not a reservation -- someone else's job can
+# still start on the same GPU a second later. It's meant to avoid the
+# obviously-bad choice (a GPU already near 100% util or nearly out of
+# memory), not to guarantee exclusivity the way a real scheduler would.
 #
 # Then:
 #   tmux attach -t chisco-train      # watch live output
@@ -29,19 +37,44 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 mkdir -p logs
 
-GPU=7
+GPU="auto"
+MIN_FREE_MIB=10000
 EXTRA_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --gpu) GPU="$2"; shift 2 ;;
+    --min-free-mib) MIN_FREE_MIB="$2"; shift 2 ;;
     --) shift; EXTRA_ARGS=("$@"); break ;;
     *) echo "Unknown arg: $1 (extra train_cluster.py args must come after --)" >&2; exit 1 ;;
   esac
 done
 
+echo "Current GPU state on this box:"
+nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv
+
+if [[ "$GPU" == "auto" ]]; then
+  # index,util%,used_mib,total_mib -> free_mib = total-used; among GPUs with
+  # free_mib >= MIN_FREE_MIB, pick lowest utilization (util is the more
+  # volatile/representative-of-contention signal; free memory is filtered
+  # as a hard floor rather than optimized, since we don't know this job's
+  # exact memory footprint yet).
+  GPU=$(nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total \
+          --format=csv,noheader,nounits \
+        | awk -F', *' -v min_free="$MIN_FREE_MIB" '
+            { free = $4 - $3; if (free >= min_free) print $2, $1, free }
+          ' \
+        | sort -n \
+        | head -1 \
+        | awk '{print $2}')
+  if [[ -z "$GPU" ]]; then
+    echo "No GPU has >= ${MIN_FREE_MIB} MiB free right now -- lower --min-free-mib or wait and retry." >&2
+    exit 1
+  fi
+  echo "Auto-selected GPU ${GPU} (lowest utilization among GPUs with >= ${MIN_FREE_MIB} MiB free)"
+fi
+
 echo "Checking GPU ${GPU} before committing a long job to it..."
 nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv -i "$GPU"
-echo "(shared box -- if this GPU is already near-saturated, consider --gpu <idx> for a freer one)"
 
 LOG_FILE="logs/train_$(date +%Y%m%d_%H%M%S)_gpu${GPU}.log"
 
@@ -97,19 +130,43 @@ print('CUDA matmul kernel launch OK')
     "${EXTRA_ARGS[@]}"
 }
 
+launch_with_nohup() {
+  echo "Falling back to nohup (less robust to tunnel drops than tmux -- if the SSH/VSCode"
+  echo "tunnel itself dies, not just your terminal, nohup survives but you lose the ability"
+  echo "to re-attach and watch live; tail -f the log file instead)."
+  nohup bash -c "$(declare -f run_training); run_training" > "$LOG_FILE" 2>&1 &
+  disown
+  echo "Launched in background, PID $!. Log file: $LOG_FILE"
+}
+
 if command -v tmux &>/dev/null; then
+  # On some shared/containerized boxes, tmux's default socket dir
+  # (/tmp/tmux-$UID) is broken -- e.g. something else already created a FILE
+  # at that path instead of a directory ("/tmp/tmux-1000 is not a directory"),
+  # which isn't something this script can fix (would need root to remove a
+  # stray file in shared /tmp), so point tmux at a private socket dir instead.
+  export TMUX_TMPDIR="$HOME/.tmux-sockets"
+  mkdir -p "$TMUX_TMPDIR"
+
   SESSION="chisco-train"
   if tmux has-session -t "$SESSION" 2>/dev/null; then
-    echo "tmux session '$SESSION' already exists -- attach with: tmux attach -t $SESSION"
+    echo "tmux session '$SESSION' already exists -- attach with: TMUX_TMPDIR=$TMUX_TMPDIR tmux attach -t $SESSION"
     exit 1
   fi
   export -f run_training
   export GPU EXTRA_ARGS LOG_FILE REPO_ROOT
-  tmux new-session -d -s "$SESSION" "bash -c 'run_training 2>&1 | tee $LOG_FILE'"
-  echo "Launched in tmux session '$SESSION'. Attach with: tmux attach -t $SESSION"
-  echo "Log file: $LOG_FILE"
+  if tmux new-session -d -s "$SESSION" "bash -c 'run_training 2>&1 | tee $LOG_FILE'" 2>/tmp/tmux_launch_err_$$; then
+    echo "Launched in tmux session '$SESSION'."
+    echo "Attach with: TMUX_TMPDIR=$TMUX_TMPDIR tmux attach -t $SESSION"
+    echo "(add 'export TMUX_TMPDIR=$TMUX_TMPDIR' to your shell rc so plain 'tmux attach' works too)"
+    echo "Log file: $LOG_FILE"
+  else
+    echo "tmux still failed even with a private TMUX_TMPDIR:"
+    cat /tmp/tmux_launch_err_$$
+    rm -f /tmp/tmux_launch_err_$$
+    launch_with_nohup
+  fi
 else
-  echo "tmux not found -- falling back to nohup (less robust to tunnel drops than tmux)."
-  nohup bash -c "$(declare -f run_training); run_training" > "$LOG_FILE" 2>&1 &
-  echo "Launched in background, PID $!. Log file: $LOG_FILE"
+  echo "tmux not found."
+  launch_with_nohup
 fi
