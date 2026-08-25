@@ -115,8 +115,10 @@ if command -v tmux &>/dev/null; then
 
   SESSION="chisco-train"
   if tmux has-session -t "$SESSION" 2>/dev/null; then
-    echo "tmux session '$SESSION' already exists -- attach with: TMUX_TMPDIR=$TMUX_TMPDIR tmux attach -t $SESSION"
-    exit 1
+    echo "tmux session '$SESSION' already exists -- killing it (and whatever is running in it,"
+    echo "including an in-progress training run) before starting a new one. To re-attach to an"
+    echo "existing run instead of replacing it, use: TMUX_TMPDIR=$TMUX_TMPDIR tmux attach -t $SESSION"
+    tmux kill-session -t "$SESSION"
   fi
   # Without this, tmux kills the session the INSTANT run_training exits --
   # success or crash. A fast crash (bad venv, pip failure, CUDA check
