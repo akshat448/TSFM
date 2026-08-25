@@ -26,12 +26,30 @@ export CUDA_VISIBLE_DEVICES="$GPU"
 # python3 -m venv failed on the real target box: "ensurepip is not
 # available" -- python3.12-venv isn't installed system-wide, and we don't
 # want to require sudo. Prefer conda (confirmed present on that box, prompt
-# showed "(base) mbz-imran@...") since it doesn't depend on ensurepip at
-# all; only fall back to venv if conda genuinely isn't available.
-if command -v conda &>/dev/null; then
+# showed "(base) mbz-imran@...") since it doesn't depend on ensurepip at all.
+#
+# `command -v conda` alone is NOT enough to detect it here: `conda init`
+# normally wires `conda` onto PATH via ~/.bashrc, which only gets sourced in
+# an interactive login shell -- this script runs as a plain non-interactive
+# script under tmux/nohup, so PATH lookup can miss a conda that works fine
+# in your normal terminal. Search common install locations for
+# etc/profile.d/conda.sh directly instead of trusting PATH.
+CONDA_SH=""
+for base in "$HOME/miniconda3" "$HOME/anaconda3" "$HOME/miniforge3" "/opt/conda" "/opt/miniconda3" "/usr/local/miniconda3"; do
+  if [ -f "$base/etc/profile.d/conda.sh" ]; then
+    CONDA_SH="$base/etc/profile.d/conda.sh"
+    break
+  fi
+done
+if [ -z "$CONDA_SH" ] && command -v conda &>/dev/null; then
+  CONDA_SH="$(conda info --base)/etc/profile.d/conda.sh"
+fi
+
+if [ -n "$CONDA_SH" ]; then
+  echo "Using conda ($CONDA_SH)"
+  # shellcheck disable=SC1090
+  source "$CONDA_SH"
   ENV_NAME=chisco-cluster
-  # shellcheck disable=SC1091
-  source "$(conda info --base)/etc/profile.d/conda.sh"
   if ! conda env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
     conda create -y -n "$ENV_NAME" python=3.11
   fi

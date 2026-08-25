@@ -37,6 +37,12 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 mkdir -p logs
 
+# Prints which commit is actually running -- if a fix was pushed and this
+# doesn't match, the fix wasn't pulled, not that it didn't work. Check with
+# `git log --oneline -1` on the branch before assuming a re-run of a bug
+# report means a fix failed.
+echo "Running from commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown (not a git checkout?)')"
+
 GPU="auto"
 MIN_FREE_MIB=10000
 EXTRA_ARGS=()
