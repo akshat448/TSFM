@@ -110,10 +110,29 @@ if command -v python &>/dev/null; then
   fi
 fi
 
-# ninja speeds up any build attempt that does happen (optional, best-effort).
-python -m pip install --quiet ninja || true
+# ninja speeds up the build; packaging/psutil/setuptools/wheel are build-time
+# deps mamba-ssm's/causal-conv1d's setup.py import directly -- normally pip's
+# build isolation would fetch these automatically into its sandbox, but
+# --no-build-isolation below means they must already be in THIS env instead.
+python -m pip install --quiet ninja packaging psutil setuptools wheel || true
+
+# ACTUAL root cause of the repeated "torch was built with CUDA 13.0" error,
+# confirmed by comparing our env's real torch.version.cuda (12.8, matching
+# the --index-url cu128 install above) against what the FAILED BUILD itself
+# printed (torch.__version__ = ...+cu130): pip's default BUILD ISOLATION
+# creates a separate, temporary environment just to run causal-conv1d's
+# setup.py, and installs its OWN torch into that sandbox (whatever the
+# newest default index resolves to, which is cu130) -- completely ignoring
+# the cu128 torch already installed in our real env. --no-build-isolation
+# makes it use our actual installed torch instead of fetching a mismatched
+# one. With that fixed, the real comparison becomes our env's torch (CUDA
+# 12.8) against whatever nvcc CUDA_HOME points at above (12.0, if no exact
+# /usr/local/cuda-12.* toolkit was found) -- same MAJOR version (12), which
+# PyTorch's version check only warns about, not a hard failure, unlike the
+# major-version mismatch (12 vs 13) that broke every previous attempt.
 MAMBA_BACKEND="mamba_ssm"
-if ! python -m pip install --quiet "causal-conv1d>=1.4.0" || ! python -m pip install --quiet "mamba-ssm>=2.2.0"; then
+if ! python -m pip install --quiet --no-build-isolation "causal-conv1d>=1.4.0" \
+   || ! python -m pip install --quiet --no-build-isolation "mamba-ssm>=2.2.0"; then
   echo "WARNING: mamba-ssm/causal-conv1d failed to install (see output above for the real error --" >&2
   echo "commonly a local CUDA toolkit / torch CUDA version mismatch on brand-new hardware)." >&2
   echo "Falling back to --mamba-backend pure_pytorch for this run. Retry with the real kernel" >&2
