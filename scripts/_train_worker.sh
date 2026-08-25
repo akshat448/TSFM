@@ -81,14 +81,36 @@ python -m pip install --quiet -r requirements-cluster.txt
 # mamba-ssm/causal-conv1d need a CUDA extension built (or a matching
 # prebuilt wheel) for your EXACT torch+CUDA+Python combo. Confirmed on this
 # box: no prebuilt wheel exists yet for cu13/torch2.13/cp311 (404 on the
-# release URL) and source-building fails because the local nvcc toolkit
-# (12.0) doesn't match what torch itself was compiled against (13.0) --
-# PyTorch's build refuses to compile a mismatched CUDA extension. This is a
-# real system-level version mismatch, not something pip flags can paper
-# over, so treat the install as best-effort: if it fails, fall back to the
-# pure-PyTorch Mamba backend (chisco_pipeline/encoder.py) rather than
-# blocking training entirely. ninja speeds up any build attempt that does
-# happen (optional, also best-effort).
+# release URL), and source-building failed because the DEFAULT nvcc on PATH
+# is CUDA 12.0 while torch itself was built against CUDA 13.0 -- but a
+# matching /usr/local/cuda-13.2 toolkit genuinely exists on this box, it's
+# just not what nvcc resolves to by default. Point CUDA_HOME at it directly
+# before building, matched to whatever CUDA version torch actually reports
+# (don't hardcode 13.2 -- would silently go stale if torch's index serves a
+# different CUDA version later).
+if command -v python &>/dev/null; then
+  TORCH_CUDA_VERSION="$(python -c 'import torch; print(torch.version.cuda or "")' 2>/dev/null || true)"
+  if [ -n "$TORCH_CUDA_VERSION" ]; then
+    TORCH_CUDA_MAJOR="${TORCH_CUDA_VERSION%%.*}"
+    CUDA_CANDIDATE=""
+    for c in "/usr/local/cuda-${TORCH_CUDA_VERSION}" "/usr/local/cuda-${TORCH_CUDA_MAJOR}" /usr/local/cuda-"${TORCH_CUDA_MAJOR}".*; do
+      if [ -x "$c/bin/nvcc" ]; then
+        CUDA_CANDIDATE="$c"
+        break
+      fi
+    done
+    if [ -n "$CUDA_CANDIDATE" ]; then
+      echo "Pointing CUDA_HOME at $CUDA_CANDIDATE to match torch's CUDA $TORCH_CUDA_VERSION (default nvcc on PATH was a different version)"
+      export CUDA_HOME="$CUDA_CANDIDATE"
+      export PATH="$CUDA_CANDIDATE/bin:$PATH"
+      export LD_LIBRARY_PATH="$CUDA_CANDIDATE/lib64:${LD_LIBRARY_PATH:-}"
+    else
+      echo "WARNING: no /usr/local/cuda-${TORCH_CUDA_MAJOR}.* toolkit found matching torch's CUDA $TORCH_CUDA_VERSION -- build will likely fail the same way it did before." >&2
+    fi
+  fi
+fi
+
+# ninja speeds up any build attempt that does happen (optional, best-effort).
 python -m pip install --quiet ninja || true
 MAMBA_BACKEND="mamba_ssm"
 if ! python -m pip install --quiet "causal-conv1d>=1.4.0" || ! python -m pip install --quiet "mamba-ssm>=2.2.0"; then
