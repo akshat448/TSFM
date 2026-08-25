@@ -27,6 +27,21 @@
 
 set -euo pipefail
 
+# Pin to physical GPU device index 7 on the node SLURM assigns this job to.
+# IMPORTANT CAVEAT: this only does what you want if your site's SLURM is
+# NOT using cgroup-based GPU isolation for the `gpu` GRES type -- on most
+# properly-configured SLURM clusters, `--gres=gpu:rtx6000:1` already
+# restricts the job to exactly one (SLURM-chosen) GPU and remaps it to
+# device index 0 inside the job's cgroup, in which case setting
+# CUDA_VISIBLE_DEVICES=7 here would be wrong (there IS no device 7 visible
+# inside the job) and would make CUDA fail to find a GPU at all. Verify
+# with `nvidia-smi -L` in an interactive job on this cluster first -- if it
+# lists all 8 GPUs (not just 1), cgroup isolation is off and this line does
+# what's intended; if it lists only 1 GPU, delete this line and instead ask
+# your cluster admin how to request a specific physical GPU index (usually
+# a site-specific --gres or --constraint flag, not a generic SLURM feature).
+export CUDA_VISIBLE_DEVICES=7
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 mkdir -p logs
