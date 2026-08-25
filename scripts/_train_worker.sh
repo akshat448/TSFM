@@ -80,7 +80,22 @@ python -m pip install --quiet --upgrade pip
 # compilers than 12.0 does. If this errors on a different torch/driver combo
 # later, check https://pytorch.org/get-started/locally/ for the current
 # index URL.
-python -m pip install --quiet torch --index-url https://download.pytorch.org/whl/cu130
+#
+# --upgrade is REQUIRED here, not optional: this conda env (chisco-cluster)
+# persists across runs (only created once, reactivated every time after
+# that -- see the conda block above). `pip install torch` with no version
+# pin is a no-op if ANY torch is already installed, regardless of which
+# index it came from -- confirmed as the actual cause of a real failure:
+# after switching this line from cu128 to cu130, a run against the SAME
+# already-existing env still showed torch.__version__ == ...+cu128, because
+# pip saw "torch" already satisfied and never re-checked the index at all.
+# --upgrade forces it to actually compare against what cu130's index offers.
+# --force-reinstall on top of that: don't rely on pip's version-comparison
+# correctly ranking "+cu128" against "+cu130" (PEP 440 local-version
+# ordering across different CUDA-build suffixes isn't something to trust
+# blindly here) -- force it to unconditionally reinstall from the pinned
+# index regardless of what it thinks is already satisfied.
+python -m pip install --quiet --upgrade --force-reinstall torch --index-url https://download.pytorch.org/whl/cu130
 python -m pip install --quiet -r requirements-cluster.txt
 
 # mamba-ssm/causal-conv1d need a CUDA extension built (or a matching
