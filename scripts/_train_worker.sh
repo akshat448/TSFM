@@ -77,8 +77,27 @@ python -m pip install --quiet --upgrade pip
 # URL and swap it in.
 python -m pip install --quiet torch --index-url https://download.pytorch.org/whl/cu128
 python -m pip install --quiet -r requirements-cluster.txt
-python -m pip install --quiet "causal-conv1d>=1.4.0"
-python -m pip install --quiet "mamba-ssm>=2.2.0"
+
+# mamba-ssm/causal-conv1d need a CUDA extension built (or a matching
+# prebuilt wheel) for your EXACT torch+CUDA+Python combo. Confirmed on this
+# box: no prebuilt wheel exists yet for cu13/torch2.13/cp311 (404 on the
+# release URL) and source-building fails because the local nvcc toolkit
+# (12.0) doesn't match what torch itself was compiled against (13.0) --
+# PyTorch's build refuses to compile a mismatched CUDA extension. This is a
+# real system-level version mismatch, not something pip flags can paper
+# over, so treat the install as best-effort: if it fails, fall back to the
+# pure-PyTorch Mamba backend (chisco_pipeline/encoder.py) rather than
+# blocking training entirely. ninja speeds up any build attempt that does
+# happen (optional, also best-effort).
+python -m pip install --quiet ninja || true
+MAMBA_BACKEND="mamba_ssm"
+if ! python -m pip install --quiet "causal-conv1d>=1.4.0" || ! python -m pip install --quiet "mamba-ssm>=2.2.0"; then
+  echo "WARNING: mamba-ssm/causal-conv1d failed to install (see output above for the real error --" >&2
+  echo "commonly a local CUDA toolkit / torch CUDA version mismatch on brand-new hardware)." >&2
+  echo "Falling back to --mamba-backend pure_pytorch for this run. Retry with the real kernel" >&2
+  echo "once the toolkit versions are reconciled (check nvcc --version vs torch.version.cuda)." >&2
+  MAMBA_BACKEND="pure_pytorch"
+fi
 
 echo "Verifying torch sees exactly 1 GPU (the pinned one) and Blackwell kernels work:"
 python -c "
@@ -98,8 +117,9 @@ else
   echo "CHISCO data already present locally, skipping download."
 fi
 
+echo "Training with --mamba-backend $MAMBA_BACKEND"
 python scripts/train_cluster.py \
-  --mamba-backend mamba_ssm \
+  --mamba-backend "$MAMBA_BACKEND" \
   --device cuda \
   --wandb-project "${WANDB_PROJECT:-chisco-tsfm}" \
   "${EXTRA_ARGS[@]}"
