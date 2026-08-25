@@ -68,14 +68,19 @@ else
 fi
 python -m pip install --quiet --upgrade pip
 
-# RTX PRO 6000 Blackwell needs a recent CUDA build -- cu121/cu124 wheels
-# predate Blackwell (compute capability 12.0) kernel support and will either
-# fail to find a usable kernel or refuse to run on this card. cu128 is the
-# earliest PyTorch wheel index with Blackwell support as of this writing; if
-# this errors on your exact torch/driver combo, check
-# https://pytorch.org/get-started/locally/ for the current recommended index
-# URL and swap it in.
-python -m pip install --quiet torch --index-url https://download.pytorch.org/whl/cu128
+# RTX PRO 6000 Blackwell needs a recent CUDA build. Pinned to cu130, not
+# cu128: this box's ONLY CUDA toolkits are the default nvcc 12.0 (no
+# versioned /usr/local/cuda-12.* dir at all, it's just whatever's on PATH by
+# default) and a real, separately-installed /usr/local/cuda-13[.2] -- and
+# CUDA 12.0's nvcc rejects the system's g++ 13.3.0 as a host compiler
+# ("must be <13.0"), confirmed by an actual build failure on this box. cu130
+# lets the CUDA_HOME auto-detection below correctly redirect to the newer,
+# working toolkit (major version 13 matches torch's 13, avoiding the earlier
+# 12-vs-13 hard mismatch), and CUDA 13.x's nvcc accepts much newer host
+# compilers than 12.0 does. If this errors on a different torch/driver combo
+# later, check https://pytorch.org/get-started/locally/ for the current
+# index URL.
+python -m pip install --quiet torch --index-url https://download.pytorch.org/whl/cu130
 python -m pip install --quiet -r requirements-cluster.txt
 
 # mamba-ssm/causal-conv1d need a CUDA extension built (or a matching
