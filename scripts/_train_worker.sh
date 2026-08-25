@@ -23,10 +23,31 @@ cd "$REPO_ROOT"
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export CUDA_VISIBLE_DEVICES="$GPU"
 
-if [ ! -d ".venv-cluster" ]; then
-  python3 -m venv .venv-cluster
+# python3 -m venv failed on the real target box: "ensurepip is not
+# available" -- python3.12-venv isn't installed system-wide, and we don't
+# want to require sudo. Prefer conda (confirmed present on that box, prompt
+# showed "(base) mbz-imran@...") since it doesn't depend on ensurepip at
+# all; only fall back to venv if conda genuinely isn't available.
+if command -v conda &>/dev/null; then
+  ENV_NAME=chisco-cluster
+  # shellcheck disable=SC1091
+  source "$(conda info --base)/etc/profile.d/conda.sh"
+  if ! conda env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
+    conda create -y -n "$ENV_NAME" python=3.11
+  fi
+  conda activate "$ENV_NAME"
+elif [ -d ".venv-cluster" ] && [ -f ".venv-cluster/bin/activate" ]; then
+  source .venv-cluster/bin/activate
+elif python3 -m venv .venv-cluster 2>/tmp/venv_err_$$; then
+  source .venv-cluster/bin/activate
+else
+  rm -rf .venv-cluster  # clean up whatever partial dir the failed attempt left behind
+  echo "Neither conda nor a working 'python3 -m venv' is available:" >&2
+  cat /tmp/venv_err_$$ >&2
+  rm -f /tmp/venv_err_$$
+  echo "Fix: install/activate conda (no sudo needed), or 'sudo apt install python3.12-venv'." >&2
+  exit 1
 fi
-source .venv-cluster/bin/activate
 python -m pip install --quiet --upgrade pip
 
 # RTX PRO 6000 Blackwell needs a recent CUDA build -- cu121/cu124 wheels

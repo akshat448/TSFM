@@ -32,6 +32,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if ! command -v aws &>/dev/null; then
+  echo "aws CLI not found -- installing via pip..."
+  # --user is invalid (and unnecessary) inside an active venv/conda env --
+  # pip already installs into that env's own bin dir, which is on PATH once
+  # activated. Only add --user when running in the bare system Python (e.g.
+  # if this script is invoked standalone, outside _train_worker.sh's env).
+  if [ -n "${VIRTUAL_ENV:-}" ] || [ -n "${CONDA_DEFAULT_ENV:-}" ]; then
+    python3 -m pip install --quiet awscli
+  else
+    python3 -m pip install --quiet --user awscli
+    export PATH="$HOME/.local/bin:$PATH"
+  fi
+  if ! command -v aws &>/dev/null; then
+    echo "Still no 'aws' on PATH after installing awscli. If you installed with --user," >&2
+    echo "add 'export PATH=\"\$HOME/.local/bin:\$PATH\"' to your shell rc and re-run." >&2
+    exit 1
+  fi
+fi
+
 IFS=',' read -ra SUBJECT_LIST <<< "$SUBJECTS"
 IFS=',' read -ra TASK_LIST <<< "$TASKS"
 
