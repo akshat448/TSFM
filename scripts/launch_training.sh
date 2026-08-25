@@ -120,16 +120,24 @@ if command -v tmux &>/dev/null; then
     echo "existing run instead of replacing it, use: TMUX_TMPDIR=$TMUX_TMPDIR tmux attach -t $SESSION"
     tmux kill-session -t "$SESSION"
   fi
-  # Without this, tmux kills the session the INSTANT run_training exits --
-  # success or crash. A fast crash (bad venv, pip failure, CUDA check
-  # failure) then means `tmux attach` immediately after launch shows "no
-  # sessions", discarding the one place you'd see why. remain-on-exit keeps
-  # the pane open after exit so you can actually attach and read it; the
-  # explicit exit-code echo below is a second belt-and-suspenders signal
-  # that also lands in the log file for cases you never attach at all.
-  tmux set-option -g remain-on-exit on
-
   if tmux new-session -d -s "$SESSION" "bash '$LAUNCHER_SCRIPT'" 2>/tmp/tmux_launch_err_$$; then
+    # Only reachable once new-session has actually started the server, so
+    # set-option now has something to target. Doing this BEFORE new-session
+    # (as an earlier version of this script did) fails outright on some tmux
+    # builds: unlike new-session, set-option does not auto-start a server,
+    # so it errors "no server running" and -- combined with `set -e` --
+    # kills the whole script before ever reaching new-session or the nohup
+    # fallback. Confirmed as the actual failure mode on the real target box.
+    #
+    # Without remain-on-exit, tmux kills the session the INSTANT
+    # run_training exits -- success or crash. A fast crash (bad venv, pip
+    # failure, CUDA check failure) then means `tmux attach` immediately
+    # after launch shows "no sessions", discarding the one place you'd see
+    # why. This keeps the pane open after exit so you can actually attach
+    # and read it; the exit-code echo baked into $LAUNCHER_SCRIPT is a
+    # second belt-and-suspenders signal that also lands in the log file for
+    # cases you never attach at all.
+    tmux set-option -t "$SESSION" remain-on-exit on
     echo "Launched in tmux session '$SESSION'."
     echo "Attach with: TMUX_TMPDIR=$TMUX_TMPDIR tmux attach -t $SESSION"
     echo "(add 'export TMUX_TMPDIR=$TMUX_TMPDIR' to your shell rc so plain 'tmux attach' works too)"
