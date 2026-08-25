@@ -31,6 +31,7 @@ Pipeline order:
 """
 
 from .dataloader import CHISCODataloader, CHISCOSample, collate_chisco
+from .raw_dataloader import CHISCORawDataloader
 from .frontend import SpatialWhiteningFrontEnd
 from .encoder import SincNetMambaEncoder, SincConv1d, CausalMambaBlock, CausalSelectiveSSM
 from .losses import TeacherStudentDistillationLoss, EMATeacher, HeteroscedasticPredictionHead
@@ -41,6 +42,7 @@ __all__ = [
     "CHISCODataloader",
     "CHISCOSample",
     "collate_chisco",
+    "CHISCORawDataloader",
     "SpatialWhiteningFrontEnd",
     "SincNetMambaEncoder",
     "SincConv1d",

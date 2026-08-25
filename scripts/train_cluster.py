@@ -44,6 +44,7 @@ from torch.utils.data import DataLoader, random_split
 
 from chisco_pipeline import (
     CHISCODataloader,
+    CHISCORawDataloader,
     collate_chisco,
     SpatialWhiteningFrontEnd,
     SincNetMambaEncoder,
@@ -61,7 +62,17 @@ CROP_SAMPLES_BY_TASK = {"imagine": 1651, "read": 2501}
 
 def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
-    p.add_argument("--data-dir", type=str, default=str(REPO_ROOT / "data/derivatives/preprocessed_pkl"))
+    p.add_argument("--eeg-source", type=str, default="derivative", choices=["derivative", "raw"],
+                    help="'derivative' (default): preprocessed pkl files from download_chisco_full.sh "
+                         "(PREP/ICA/autoreject/1Hz-highpass already applied by the CHISCO authors). "
+                         "'raw': unprocessed .edf files from download_chisco_raw.sh, epoched directly "
+                         "with NO artifact-cleaning preprocessing -- see raw_dataloader.py.")
+    p.add_argument("--data-dir", type=str, default=str(REPO_ROOT / "data/derivatives/preprocessed_pkl"),
+                    help="For --eeg-source derivative: dir of sub-*/eeg/*.pkl files.")
+    p.add_argument("--raw-data-dir", type=str, default=str(REPO_ROOT / "data/raw"),
+                    help="For --eeg-source raw: dir containing sub-*/ses-*/eeg/*.edf files.")
+    p.add_argument("--textdataset-dir", type=str, default=str(REPO_ROOT / "data/raw/textdataset"),
+                    help="For --eeg-source raw: dir of split_data_{run}.xlsx label files.")
     p.add_argument("--task", type=str, default="imagine", choices=["imagine", "read"])
     p.add_argument("--subjects", type=str, default="01,02,03,04,05")
     p.add_argument("--val-frac", type=float, default=0.15)
@@ -98,23 +109,50 @@ def discover_pkl_files(data_dir: str, task: str, subjects: list[str]) -> list[Pa
     return files
 
 
+def discover_edf_files(data_dir: str, subjects: list[str]) -> list[Path]:
+    files = []
+    for sub in subjects:
+        pattern = os.path.join(data_dir, f"sub-{sub}", "ses-*", "eeg", f"sub-{sub}_ses-*_task-imagine_run-*_eeg.edf")
+        files.extend(sorted(Path(p) for p in glob.glob(pattern)))
+    return files
+
+
 def main() -> None:
     args = build_arg_parser().parse_args()
     torch.manual_seed(args.seed)
     subjects = args.subjects.split(",")
 
-    pkl_files = discover_pkl_files(args.data_dir, args.task, subjects)
-    if not pkl_files:
-        raise SystemExit(
-            f"No pkl files found under {args.data_dir} for task={args.task}, subjects={subjects}. "
-            "Run scripts/download_chisco_full.sh first."
-        )
-    print(f"Found {len(pkl_files)} run files: {[p.name for p in pkl_files]}")
+    if args.eeg_source == "derivative":
+        pkl_files = discover_pkl_files(args.data_dir, args.task, subjects)
+        if not pkl_files:
+            raise SystemExit(
+                f"No pkl files found under {args.data_dir} for task={args.task}, subjects={subjects}. "
+                "Run scripts/download_chisco_full.sh first."
+            )
+        print(f"Found {len(pkl_files)} run files: {[p.name for p in pkl_files]}")
+    else:
+        edf_files = discover_edf_files(args.raw_data_dir, subjects)
+        if not edf_files:
+            raise SystemExit(
+                f"No .edf files found under {args.raw_data_dir} for subjects={subjects}. "
+                "Run scripts/download_chisco_raw.sh first."
+            )
+        print(f"Found {len(edf_files)} run files: {[p.name for p in edf_files]}")
 
     run = wandb.init(project=args.wandb_project, entity=args.wandb_entity, name=args.wandb_run_name, config=vars(args))
 
     crop_samples = CROP_SAMPLES_BY_TASK[args.task]
-    dataset = CHISCODataloader(pkl_files, sample_rate_hz=500.0, highpass_hz=0.5, crop_samples=crop_samples)
+    if args.eeg_source == "derivative":
+        dataset = CHISCODataloader(pkl_files, sample_rate_hz=500.0, highpass_hz=0.5, crop_samples=crop_samples)
+    else:
+        # highpass_hz=None: raw source is explicitly "no preprocessing" --
+        # see raw_dataloader.py module docstring for what that does and
+        # doesn't mean (event detection/epoching is still unavoidable to
+        # get trials at all; artifact-cleaning is what's skipped).
+        dataset = CHISCORawDataloader(
+            edf_files, task=args.task, textdataset_dir=args.textdataset_dir,
+            sample_rate_hz=500.0, highpass_hz=None,
+        )
     print(f"{len(dataset)} total trials loaded")
 
     n_val = max(1, int(len(dataset) * args.val_frac))
@@ -177,11 +215,19 @@ def main() -> None:
     encoder.eval()
 
     print("\n== Linear probe: held-out sentence-identity top-1 ==")
-    # Read text directly off dataset.trials rather than materializing full
-    # CHISCOSample objects (which would re-run the highpass filter over every
-    # trial's EEG just to read a label -- wasteful at full-dataset scale).
-    all_texts_train = [dataset.trials[i]["text"].strip() for i in train_set.indices]
-    all_texts_val = [dataset.trials[i]["text"].strip() for i in val_set.indices]
+    if args.eeg_source == "derivative":
+        # Fast path: read text directly off dataset.trials rather than
+        # materializing full CHISCOSample objects (which would re-run the
+        # highpass filter over every trial's EEG just to read a label --
+        # wasteful at full-dataset scale). CHISCORawDataloader has no
+        # equivalent cheap path -- getting a raw trial's text means loading
+        # and epoching its whole source .edf, there's no way around that for
+        # a lazy per-file loader (see raw_dataloader.py).
+        all_texts_train = [dataset.trials[i]["text"].strip() for i in train_set.indices]
+        all_texts_val = [dataset.trials[i]["text"].strip() for i in val_set.indices]
+    else:
+        all_texts_train = [dataset[i].catalog_content for i in train_set.indices]
+        all_texts_val = [dataset[i].catalog_content for i in val_set.indices]
     label_vocab = sorted(set(all_texts_train) | set(all_texts_val))
     label_to_idx = {t: i for i, t in enumerate(label_vocab)}
     n_classes = len(label_vocab)

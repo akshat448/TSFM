@@ -1,7 +1,7 @@
 # Cluster/GPU training requirements for scripts/train_cluster.py.
-# torch itself is installed separately in the sbatch script with the
-# cluster's CUDA version pinned (see slurm/train_rtx6000.sbatch) -- not
-# listed here to avoid pip grabbing a mismatched build.
+# torch itself is installed separately in scripts/_train_worker.sh with the
+# cluster's CUDA version pinned -- not listed here to avoid pip grabbing a
+# mismatched build.
 
 numpy
 scipy
@@ -9,6 +9,12 @@ pandas
 transformers
 wandb
 python-dotenv
+
+# For chisco_pipeline/raw_dataloader.py (raw .edf loading, no preprocessing):
+# mne reads/epochs the .edf files; openpyxl is pandas' engine for the
+# textdataset .xlsx label files.
+mne
+openpyxl
 
 # CUDA-only, used when --mamba-backend mamba_ssm (see chisco_pipeline/encoder.py).
 # Both need a CUDA toolchain to build and will fail to install on CPU-only
