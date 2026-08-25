@@ -1,0 +1,18 @@
+# Cluster/GPU training requirements for scripts/train_cluster.py.
+# torch itself is installed separately in the sbatch script with the
+# cluster's CUDA version pinned (see slurm/train_rtx6000.sbatch) -- not
+# listed here to avoid pip grabbing a mismatched build.
+
+numpy
+scipy
+pandas
+transformers
+wandb
+python-dotenv
+
+# CUDA-only, used when --mamba-backend mamba_ssm (see chisco_pipeline/encoder.py).
+# Both need a CUDA toolchain to build and will fail to install on CPU-only
+# machines (e.g. this local dev machine) -- that's expected, leave commented
+# out unless you're actually building on a CUDA box.
+# causal-conv1d>=1.4.0
+# mamba-ssm>=2.2.0

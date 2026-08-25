@@ -1,28 +1,11 @@
-# Datasets
-dataset/raw/
-
-# HuggingFace caches
-**/*.arrow
-
-# Large archives
-*.zip
-
-# Large generated files
-*.parquet
-
-# Python
+.venv/
+.venv-cluster/
 __pycache__/
 *.pyc
-
-# Virtual environments
-venv/
 .env
-models/cache/
-models/checkpoints/
-models/envs/
-.venv-tsfm-smoke/
-dataset/raw/
-__pycache__/
-*.pyc
-venv/
-.env
+data/
+checkpoints/
+wandb/
+logs/
+*.pt
+.claude/
